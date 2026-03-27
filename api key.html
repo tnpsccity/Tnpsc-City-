@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TNPSC 5000+ Mock Test | AI Powered</title>
+
+  <!-- ── API KEY SETUP ── -->
+  <!-- ⚠️ உங்கள் Anthropic API key இங்கே உள்ளிடவும் -->
+  <script>
+    window.ANTHROPIC_API_KEY = "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";
+  </script>
+
+  <!-- React + Babel CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #080810; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── CONSTANTS ────────────────────────────────────────────────────────
+    const SUBJECTS = [
+      { id: "tamil_lang",  label: "Tamil Language & Literature", icon: "ஆ", color: "#f97316", bg: "#f9731618" },
+      { id: "history",     label: "Indian & TN History",         icon: "🏛", color: "#a78bfa", bg: "#a78bfa18" },
+      { id: "polity",      label: "Indian Polity",               icon: "⚖", color: "#38bdf8", bg: "#38bdf818" },
+      { id: "economy",     label: "Indian Economy",              icon: "📈", color: "#34d399", bg: "#34d39918" },
+      { id: "geography",   label: "Geography",                   icon: "🌏", color: "#fb923c", bg: "#fb923c18" },
+      { id: "science",     label: "Science & Technology",        icon: "🔬", color: "#e879f9", bg: "#e879f918" },
+      { id: "environment", label: "Environment & Ecology",       icon: "🌿", color: "#4ade80", bg: "#4ade8018" },
+      { id: "current",     label: "Current Affairs",             icon: "📰", color: "#f43f5e", bg: "#f43f5e18" },
+      { id: "aptitude",    label: "Mental Ability & Aptitude",   icon: "🧠", color: "#fbbf24", bg: "#fbbf2418" },
+      { id: "english",     label: "General English",             icon: "📚", color: "#67e8f9", bg: "#67e8f918" },
+    ];
+
+    const DIFFICULTY = ["Easy", "Medium", "Hard"];
+    const MODES = [
+      { id: "quick",   label: "Quick 10",    icon: "⚡", desc: "10 questions · 10 min",  count: 10,  time: 600  },
+      { id: "subject", label: "Subject Test", icon: "📖", desc: "25 questions · 25 min",  count: 25,  time: 1500 },
+      { id: "mock",    label: "Full Mock",   icon: "🏆", desc: "100 questions · 90 min", count: 100, time: 5400 },
+      { id: "speed",   label: "Speed Round", icon: "🔥", desc: "20 questions · 8 min",   count: 20,  time: 480  },
+    ];
+
+    // ── STORAGE (localStorage fallback since window.storage unavailable outside Claude) ──
+    const safeGet = async (key) => {
+      try {
+        if (window.storage) {
+          const r = await window.storage.get(key);
+          return r ? JSON.parse(r.value) : null;
+        } else {
+          const v = localStorage.getItem(key);
+          return v ? JSON.parse(v) : null;
+        }
+      } catch { return null; }
+    };
+    const safeSet = async (key, val) => {
+      try {
+        if (window.storage) {
+          await window.storage.set(key, JSON.stringify(val));
+        } else {
+          localStorage.setItem(key, JSON.stringify(val));
+        }
+      } catch {}
+    };
+
+    // ── CIRCULAR PROGRESS ────────────────────────────────────────────────
+    function CircleProgress({ pct, size = 80, stroke = 7, color = "#f97316", children }) {
+      const r = (size - stroke) / 2;
+      const circ = 2 * Math.PI * r;
+      return (
+        <div style={{ position:"relative", width:size, height:size, display:"inline-flex", alignItems:"center", justifyContent:"center" }}>
+          <svg width={size} height={size} style={{ transform:"rotate(-90deg)", position:"absolute" }}>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff0d" strokeWidth={stroke} />
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+              strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+              strokeLinecap="round" style={{ transition:"stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }} />
+          </svg>
+          <div style={{ position:"relative", zIndex:1 }}>{children}</div>
+        </div>
+      );
+    }
+
+    // ── ANIMATED COUNTER ─────────────────────────────────────────────────
+    function Counter({ target, duration = 1200, style }) {
+      const [val, setVal] = useState(0);
+      useEffect(() => {
+        let start = null;
+        const step = (ts) => {
+          if (!start) start = ts;
+          const p = Math.min((ts - start) / duration, 1);
+          setVal(Math.floor(p * target));
+          if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }, [target]);
+      return <span style={style}>{val.toLocaleString()}</span>;
+    }
+
+    // ── BAR CHART ────────────────────────────────────────────────────────
+    function MiniBar({ label, correct, total, color }) {
+      const pct = total > 0 ? (correct / total) * 100 : 0;
+      return (
+        <div style={{ marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4, color:"#cbd5e1" }}>
+            <span>{label}</span><span style={{ color }}>{correct}/{total}</span>
+          </div>
+          <div style={{ height:6, background:"#ffffff0d", borderRadius:99 }}>
+            <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color},${color}99)`, borderRadius:99, transition:"width 1.2s cubic-bezier(.4,0,.2,1)" }} />
+          </div>
+        </div>
+      );
+    }
+
+    // ── TOAST ────────────────────────────────────────────────────────────
+    function Toast({ msg, ok }) {
+      return (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:ok?"#16a34a":"#dc2626", color:"#fff", padding:"10px 24px", borderRadius:30, fontSize:14, fontWeight:600, zIndex:9999, boxShadow:"0 8px 32px rgba(0,0,0,0.4)" }}>
+          {msg}
+        </div>
+      );
+    }
+
+    const css = `
+      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Noto+Serif+Tamil:wght@400;600&display=swap');
+      @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+      @keyframes spin { to{transform:rotate(360deg)} }
+      @keyframes slideQ { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+      * { box-sizing:border-box; margin:0; padding:0; }
+      ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#0d1117} ::-webkit-scrollbar-thumb{background:#2d2d4e;border-radius:4px}
+    `;
+
+    // ── MAIN APP ─────────────────────────────────────────────────────────
+    function TNPSCApp() {
+      const [phase, setPhase]       = useState("dashboard");
+      const [mode, setMode]         = useState(null);
+      const [selSubjects, setSelSubjects] = useState(SUBJECTS.map(s => s.id));
+      const [selDiff, setSelDiff]   = useState(["Easy","Medium","Hard"]);
+      const [questions, setQuestions] = useState([]);
+      const [current, setCurrent]   = useState(0);
+      const [answers, setAnswers]   = useState([]);
+      const [timeLeft, setTimeLeft] = useState(0);
+      const [loading, setLoading]   = useState(false);
+      const [loadMsg, setLoadMsg]   = useState("");
+      const [toast, setToast]       = useState(null);
+      const [stats, setStats]       = useState({ total:0, correct:0, sessions:0, streak:0, bySubject:{} });
+      const [history, setHistory]   = useState([]);
+      const [showReview, setShowReview] = useState(false);
+      const [animQ, setAnimQ]       = useState(false);
+      const timerRef = useRef(null);
+
+      useEffect(() => {
+        (async () => {
+          const s = await safeGet("tnpsc_stats");
+          const h = await safeGet("tnpsc_history");
+          if (s) setStats(s);
+          if (h) setHistory(h);
+        })();
+      }, []);
+
+      const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 2500); };
+
+      useEffect(() => {
+        if (phase === "test" && timeLeft > 0) {
+          timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000);
+        } else if (phase === "test" && timeLeft === 0 && questions.length > 0) {
+          handleSubmit(true);
+        }
+        return () => clearTimeout(timerRef.current);
+      }, [phase, timeLeft, questions.length]);
+
+      useEffect(() => {
+        setAnimQ(true);
+        const t = setTimeout(() => setAnimQ(false), 400);
+        return () => clearTimeout(t);
+      }, [current]);
+
+      // ── GENERATE QUESTIONS VIA API ──────────────────────────────────
+      const generateQuestions = useCallback(async (modeObj, subjects, diffs) => {
+        setLoading(true);
+        setLoadMsg("AI Question Engine Initialising…");
+        const total = modeObj.count;
+        const perBatch = 5;
+        const batches = Math.ceil(total / perBatch);
+        let allQ = [];
+
+        const subjectNames = SUBJECTS.filter(s => subjects.includes(s.id)).map(s => s.label);
+        if (subjectNames.length === 0) { showToast("Select at least one subject!", false); setLoading(false); return; }
+
+        const apiKey = window.ANTHROPIC_API_KEY || "";
+
+        for (let b = 0; b < batches; b++) {
+          const need = Math.min(perBatch, total - allQ.length);
+          setLoadMsg(`Generating questions… ${allQ.length + need}/${total}`);
+          const subj = subjectNames[b % subjectNames.length];
+          const diff = diffs[b % diffs.length] || "Medium";
+
+          try {
+            const resp = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+                "anthropic-dangerous-direct-browser-access": "true"
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 1000,
+                messages: [{
+                  role: "user",
+                  content: `Generate exactly ${need} TNPSC exam MCQ questions for subject: "${subj}", difficulty: "${diff}".
+Return ONLY a JSON array (no markdown, no backticks) like:
+[{"q":"Question text","opts":["A","B","C","D"],"ans":0,"subject":"${subj}","diff":"${diff}","exp":"Brief explanation"}]
+- ans is 0-indexed correct option index.
+- Questions must be factual, TNPSC relevant, not repeated.
+- Mix of topics within the subject.`
+                }]
+              })
+            });
+            const data = await resp.json();
+            const raw = data.content?.map(c => c.text || "").join("") || "[]";
+            const clean = raw.replace(/```json|```/g, "").trim();
+            const parsed = JSON.parse(clean);
+            parsed.forEach((q, i) => {
+              allQ.push({ ...q, id: allQ.length + i + 1, subject: q.subject || subj, diff: q.diff || diff });
+            });
+          } catch (e) {
+            for (let i = 0; i < need; i++) {
+              allQ.push({
+                id: allQ.length + 1,
+                q: `TNPSC Sample: Which of the following relates to ${subj}?`,
+                opts: ["Option A", "Option B", "Option C", "Option D"],
+                ans: 0, subject: subj, diff, exp: "Generated question."
+              });
+            }
+          }
+        }
+
+        setQuestions(allQ);
+        setAnswers(Array(allQ.length).fill(null));
+        setTimeLeft(modeObj.time);
+        setLoading(false);
+        setPhase("test");
+      }, []);
+
+      // ── SUBMIT ───────────────────────────────────────────────────────
+      const handleSubmit = useCallback((auto = false) => {
+        clearTimeout(timerRef.current);
+        const correct = answers.filter((a, i) => a === questions[i]?.ans).length;
+        const pct = Math.round((correct / questions.length) * 100);
+
+        const newStats = { ...stats };
+        newStats.total    = (newStats.total || 0) + questions.length;
+        newStats.correct  = (newStats.correct || 0) + correct;
+        newStats.sessions = (newStats.sessions || 0) + 1;
+        newStats.streak   = pct >= 60 ? (newStats.streak || 0) + 1 : 0;
+        if (!newStats.bySubject) newStats.bySubject = {};
+        questions.forEach((q, i) => {
+          const s = q.subject;
+          if (!newStats.bySubject[s]) newStats.bySubject[s] = { c:0, t:0 };
+          newStats.bySubject[s].t++;
+          if (answers[i] === q.ans) newStats.bySubject[s].c++;
+        });
+        setStats(newStats);
+        safeSet("tnpsc_stats", newStats);
+
+        const rec = { date: new Date().toLocaleDateString("en-IN"), mode: mode?.label, score: correct, total: questions.length, pct };
+        const newHistory = [rec, ...(history || [])].slice(0, 20);
+        setHistory(newHistory);
+        safeSet("tnpsc_history", newHistory);
+
+        setPhase("result");
+        showToast(auto ? "⏰ Time Up! Test Submitted" : "✅ Test Submitted!");
+      }, [answers, questions, stats, history, mode]);
+
+      const score   = answers.filter((a, i) => a === questions[i]?.ans).length;
+      const skipped = answers.filter(a => a === null).length;
+      const wrong   = questions.length - score - skipped;
+      const pct     = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
+      const fmt     = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+      const urgent  = timeLeft <= 120 && timeLeft > 0;
+      const answered = answers.filter(a => a !== null).length;
+      const globalPct = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+
+      // ── LOADING SCREEN ───────────────────────────────────────────────
+      if (loading) return (
+        <>
+          <style>{css}</style>
+          <div style={{ minHeight:"100vh", background:"#080810", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Sora',sans-serif", gap:32 }}>
+            <div style={{ width:80, height:80, border:"3px solid #f9731620", borderTop:"3px solid #f97316", borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:20, fontWeight:700, color:"#f1f5f9", marginBottom:8 }}>AI Question Engine</div>
+              <div style={{ fontSize:14, color:"#64748b", animation:"pulse 1.5s ease-in-out infinite" }}>{loadMsg}</div>
+            </div>
+            <div style={{ width:280, height:4, background:"#1e1e3a", borderRadius:99, overflow:"hidden" }}>
+              <div style={{ height:"100%", background:"linear-gradient(90deg,#f97316,#a78bfa,#f97316)", backgroundSize:"200% 100%", animation:"shimmer 1.5s linear infinite", borderRadius:99 }} />
+            </div>
+            <div style={{ fontSize:12, color:"#475569" }}>Generating TNPSC-level questions with AI…</div>
+          </div>
+        </>
+      );
+
+      // ── DASHBOARD ────────────────────────────────────────────────────
+      if (phase === "dashboard") return (
+        <>
+          <style>{css}</style>
+          <div style={{ minHeight:"100vh", background:"#080810", fontFamily:"'Sora',sans-serif", color:"#f1f5f9" }}>
+            <div style={{ position:"fixed", inset:0, backgroundImage:"radial-gradient(circle at 20% 20%, #f9731608 0%, transparent 60%), radial-gradient(circle at 80% 80%, #a78bfa08 0%, transparent 60%)", pointerEvents:"none" }} />
+            <div style={{ maxWidth:960, margin:"0 auto", padding:"24px 16px", position:"relative" }}>
+              <div style={{ textAlign:"center", marginBottom:40, animation:"fadeUp .6s ease" }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#f9731615", border:"1px solid #f9731630", borderRadius:30, padding:"6px 18px", fontSize:12, color:"#f97316", letterSpacing:2, textTransform:"uppercase", marginBottom:16 }}>
+                  <span>●</span> TNPSC Exam Preparation Platform
+                </div>
+                <h1 style={{ fontSize:"clamp(28px,6vw,48px)", fontWeight:800, background:"linear-gradient(135deg,#f97316,#fbbf24,#f97316)", backgroundSize:"200%", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", animation:"shimmer 3s linear infinite", marginBottom:8 }}>
+                  5000+ Question Bank
+                </h1>
+                <p style={{ color:"#64748b", fontSize:15 }}>AI-Powered · Adaptive Difficulty · Full TNPSC Syllabus</p>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:32, animation:"fadeUp .7s ease" }}>
+                {[
+                  { label:"Questions Attempted", val: stats.total   || 0, color:"#f97316", icon:"📝" },
+                  { label:"Correct Answers",      val: stats.correct || 0, color:"#4ade80", icon:"✅" },
+                  { label:"Test Sessions",         val: stats.sessions|| 0, color:"#a78bfa", icon:"🎯" },
+                  { label:"Win Streak",            val: stats.streak  || 0, color:"#fbbf24", icon:"🔥" },
+                ].map(s => (
+                  <div key={s.label} style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:16, padding:"20px 16px", textAlign:"center" }}>
+                    <div style={{ fontSize:24, marginBottom:6 }}>{s.icon}</div>
+                    <Counter target={s.val} style={{ fontSize:26, fontWeight:800, color:s.color, display:"block" }} />
+                    <div style={{ fontSize:11, color:"#475569", marginTop:4 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:16, background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:20, padding:"24px", marginBottom:28, animation:"fadeUp .8s ease" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, paddingRight:24, borderRight:"1px solid #1e1e3a", minWidth:140 }}>
+                  <CircleProgress pct={globalPct} size={110} stroke={9} color="#f97316">
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:24, fontWeight:800, color:"#f97316" }}>{globalPct}%</div>
+                      <div style={{ fontSize:10, color:"#64748b" }}>Accuracy</div>
+                    </div>
+                  </CircleProgress>
+                  <div style={{ fontSize:12, color:"#64748b", textAlign:"center" }}>Overall Performance</div>
+                </div>
+                <div style={{ flex:1, paddingLeft:8 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#94a3b8", marginBottom:14, letterSpacing:1, textTransform:"uppercase" }}>Subject-wise Score</div>
+                  {SUBJECTS.slice(0,6).map(s => {
+                    const d = stats.bySubject?.[s.label] || { c:0, t:0 };
+                    return <MiniBar key={s.id} label={s.label.split(" ").slice(0,2).join(" ")} correct={d.c} total={d.t} color={s.color} />;
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom:28, animation:"fadeUp .85s ease" }}>
+                <div style={{ fontSize:13, fontWeight:700, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase", marginBottom:16 }}>Choose Test Mode</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
+                  {MODES.map(m => (
+                    <button key={m.id} onClick={() => { setMode(m); setPhase("config"); }}
+                      style={{ background: mode?.id===m.id ? "#f9731615" : "#0d1117", border:`2px solid ${mode?.id===m.id ? "#f97316" : "#1e1e3a"}`, borderRadius:16, padding:"20px", textAlign:"left", cursor:"pointer", transition:"all .2s", color:"#f1f5f9" }}
+                      onMouseOver={e => e.currentTarget.style.borderColor="#f9731660"}
+                      onMouseOut={e => { if (mode?.id!==m.id) e.currentTarget.style.borderColor="#1e1e3a"; }}>
+                      <div style={{ fontSize:28, marginBottom:8 }}>{m.icon}</div>
+                      <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{m.label}</div>
+                      <div style={{ fontSize:12, color:"#64748b" }}>{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {history.length > 0 && (
+                <div style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:20, padding:"20px 24px", animation:"fadeUp .9s ease" }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase", marginBottom:16 }}>Recent Sessions</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {history.slice(0,5).map((h,i) => (
+                      <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#ffffff05", borderRadius:10 }}>
+                        <div>
+                          <span style={{ fontSize:13, fontWeight:600 }}>{h.mode}</span>
+                          <span style={{ fontSize:11, color:"#475569", marginLeft:8 }}>{h.date}</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          <span style={{ fontSize:13, color:"#94a3b8" }}>{h.score}/{h.total}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color: h.pct>=60?"#4ade80":h.pct>=40?"#fbbf24":"#f87171" }}>{h.pct}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {toast && <Toast msg={toast.msg} ok={toast.ok} />}
+        </>
+      );
+
+      // ── CONFIG SCREEN ────────────────────────────────────────────────
+      if (phase === "config") return (
+        <>
+          <style>{css}</style>
+          <div style={{ minHeight:"100vh", background:"#080810", fontFamily:"'Sora',sans-serif", color:"#f1f5f9", padding:"24px 16px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto" }}>
+              <button onClick={() => setPhase("dashboard")} style={{ background:"transparent", border:"none", color:"#64748b", fontSize:14, cursor:"pointer", marginBottom:24, display:"flex", alignItems:"center", gap:6 }}>← Back</button>
+              <div style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:24, padding:"32px", marginBottom:20, animation:"fadeUp .4s ease" }}>
+                <div style={{ fontSize:36, marginBottom:8, textAlign:"center" }}>{mode?.icon}</div>
+                <h2 style={{ textAlign:"center", fontSize:24, fontWeight:800, marginBottom:4 }}>{mode?.label}</h2>
+                <p style={{ textAlign:"center", color:"#64748b", marginBottom:32 }}>{mode?.desc}</p>
+
+                <div style={{ marginBottom:28 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase" }}>Select Subjects</span>
+                    <button onClick={() => setSelSubjects(selSubjects.length===SUBJECTS.length ? [] : SUBJECTS.map(s=>s.id))}
+                      style={{ background:"transparent", border:"1px solid #1e1e3a", borderRadius:20, padding:"4px 12px", color:"#94a3b8", fontSize:11, cursor:"pointer" }}>
+                      {selSubjects.length===SUBJECTS.length ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+                    {SUBJECTS.map(s => {
+                      const sel = selSubjects.includes(s.id);
+                      return (
+                        <button key={s.id} onClick={() => setSelSubjects(prev => sel ? prev.filter(x=>x!==s.id) : [...prev,s.id])}
+                          style={{ background: sel ? s.bg : "#ffffff04", border:`1.5px solid ${sel ? s.color+"66" : "#1e1e3a"}`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", transition:"all .18s", textAlign:"left" }}>
+                          <span style={{ fontSize:18 }}>{s.icon}</span>
+                          <span style={{ fontSize:12, fontWeight:sel?700:400, color: sel?s.color:"#64748b" }}>{s.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom:32 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase", marginBottom:14 }}>Difficulty Level</div>
+                  <div style={{ display:"flex", gap:10 }}>
+                    {DIFFICULTY.map(d => {
+                      const sel = selDiff.includes(d);
+                      const col = d==="Easy"?"#4ade80":d==="Medium"?"#fbbf24":"#f87171";
+                      return (
+                        <button key={d} onClick={() => setSelDiff(prev => sel ? prev.filter(x=>x!==d) : [...prev,d])}
+                          style={{ flex:1, padding:"12px", background: sel?`${col}18`:"#ffffff04", border:`1.5px solid ${sel?col+"66":"#1e1e3a"}`, borderRadius:12, color: sel?col:"#64748b", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .18s" }}>
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button onClick={() => generateQuestions(mode, selSubjects, selDiff)}
+                  disabled={selSubjects.length===0 || selDiff.length===0}
+                  style={{ width:"100%", padding:"18px", background: selSubjects.length>0&&selDiff.length>0 ? "linear-gradient(135deg,#f97316,#f59e0b)" : "#1e1e3a", border:"none", borderRadius:14, color: selSubjects.length>0&&selDiff.length>0 ? "#fff" : "#475569", fontSize:16, fontWeight:800, cursor: selSubjects.length>0&&selDiff.length>0 ? "pointer" : "not-allowed", letterSpacing:.5, boxShadow: selSubjects.length>0&&selDiff.length>0 ? "0 8px 32px #f9731640" : "none", transition:"all .2s" }}>
+                  🚀 Generate & Start Test
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+
+      // ── TEST SCREEN ──────────────────────────────────────────────────
+      if (phase === "test" && questions.length > 0) {
+        const q = questions[current];
+        const subjData = SUBJECTS.find(s => s.label === q?.subject) || SUBJECTS[0];
+        const diffColor = q?.diff==="Easy"?"#4ade80":q?.diff==="Medium"?"#fbbf24":"#f87171";
+
+        return (
+          <>
+            <style>{css}</style>
+            <div style={{ minHeight:"100vh", background:"#080810", fontFamily:"'Sora',sans-serif", color:"#f1f5f9", display:"flex", flexDirection:"column" }}>
+              <div style={{ background:"#0d1117", borderBottom:"1px solid #1e1e3a", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <CircleProgress pct={Math.round((answered/questions.length)*100)} size={36} stroke={4} color="#f97316">
+                    <span style={{ fontSize:9, fontWeight:700, color:"#f97316" }}>{answered}</span>
+                  </CircleProgress>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700 }}>Q {current+1}<span style={{ color:"#475569" }}>/{questions.length}</span></div>
+                    <div style={{ fontSize:10, color:"#475569" }}>{answered} answered</div>
+                  </div>
+                </div>
+
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                  <div style={{ fontSize:18, fontWeight:800, color: urgent?"#f87171":"#fbbf24", fontVariantNumeric:"tabular-nums",
+                    animation: urgent?"pulse 1s ease-in-out infinite":"none",
+                    background: urgent?"#f8717118":"#fbbf2415", padding:"4px 14px", borderRadius:20, border:`1px solid ${urgent?"#f8717144":"#fbbf2444"}` }}>
+                    ⏱ {fmt(timeLeft)}
+                  </div>
+                </div>
+
+                <button onClick={() => { if (window.confirm("Submit test now?")) handleSubmit(); }}
+                  style={{ background:"#f9731618", border:"1px solid #f9731644", borderRadius:10, padding:"6px 14px", color:"#f97316", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                  Submit
+                </button>
+              </div>
+
+              <div style={{ height:2, background:"#1e1e3a" }}>
+                <div style={{ height:"100%", width:`${((current+1)/questions.length)*100}%`, background:"linear-gradient(90deg,#f97316,#fbbf24)", transition:"width .4s ease" }} />
+              </div>
+
+              <div style={{ flex:1, maxWidth:760, margin:"0 auto", width:"100%", padding:"20px 16px" }}>
+                <div style={{ display:"flex", gap:8, marginBottom:16, animation: animQ?"slideQ .35s ease":"none" }}>
+                  <span style={{ fontSize:11, padding:"4px 12px", borderRadius:20, background:subjData.bg, color:subjData.color, border:`1px solid ${subjData.color}44`, fontWeight:600 }}>
+                    {subjData.icon} {q?.subject}
+                  </span>
+                  <span style={{ fontSize:11, padding:"4px 12px", borderRadius:20, background:`${diffColor}18`, color:diffColor, border:`1px solid ${diffColor}44`, fontWeight:600 }}>
+                    {q?.diff}
+                  </span>
+                </div>
+
+                <div style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:20, padding:"28px 24px", marginBottom:20, boxShadow:"0 16px 48px rgba(0,0,0,.5)", animation: animQ?"slideQ .35s ease":"none" }}>
+                  <p style={{ fontSize:17, lineHeight:1.8, fontWeight:500 }}>
+                    <span style={{ color:"#f97316", fontWeight:800 }}>Q{current+1}. </span>{q?.q}
+                  </p>
+                </div>
+
+                <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24, animation: animQ?"slideQ .4s ease":"none" }}>
+                  {q?.opts?.map((opt, i) => {
+                    const sel = answers[current] === i;
+                    const letters = ["A","B","C","D"];
+                    return (
+                      <button key={i} onClick={() => {
+                        const copy = [...answers]; copy[current] = i; setAnswers(copy);
+                      }}
+                        style={{ width:"100%", textAlign:"left", padding:"16px 20px", borderRadius:14, border:`2px solid ${sel?"#f97316":"#1e1e3a"}`, background:sel?"#f9731615":"#0d1117", color:sel?"#fed7aa":"#cbd5e1", cursor:"pointer", transition:"all .18s", display:"flex", alignItems:"center", gap:16, fontSize:15 }}
+                        onMouseOver={e => { if(!sel){ e.currentTarget.style.background="#ffffff06"; e.currentTarget.style.borderColor="#334155"; }}}
+                        onMouseOut={e => { if(!sel){ e.currentTarget.style.background="#0d1117"; e.currentTarget.style.borderColor="#1e1e3a"; }}}>
+                        <span style={{ width:32, height:32, borderRadius:8, border:`2px solid ${sel?"#f97316":"#334155"}`, background:sel?"#f97316":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:sel?"#fff":"#64748b", flexShrink:0, transition:"all .18s" }}>
+                          {letters[i]}
+                        </span>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display:"flex", gap:10, marginBottom:28 }}>
+                  <button onClick={() => setCurrent(c => Math.max(0,c-1))} disabled={current===0}
+                    style={{ flex:1, padding:"13px", background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:12, color:current===0?"#334155":"#94a3b8", fontSize:14, cursor:current===0?"not-allowed":"pointer" }}>← Prev</button>
+                  {answers[current]===null && (
+                    <button onClick={() => { const copy=[...answers]; copy[current]=-1; setAnswers(copy); setCurrent(c => Math.min(questions.length-1,c+1)); }}
+                      style={{ flex:1, padding:"13px", background:"#0d1117", border:"1px solid #334155", borderRadius:12, color:"#64748b", fontSize:14, cursor:"pointer" }}>Skip →</button>
+                  )}
+                  {current < questions.length-1 ? (
+                    <button onClick={() => setCurrent(c => Math.min(questions.length-1,c+1))}
+                      style={{ flex:1, padding:"13px", background:"linear-gradient(135deg,#f97316,#f59e0b)", border:"none", borderRadius:12, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>Next →</button>
+                  ) : (
+                    <button onClick={() => { if(window.confirm("Submit test?")) handleSubmit(); }}
+                      style={{ flex:1, padding:"13px", background:"linear-gradient(135deg,#22c55e,#16a34a)", border:"none", borderRadius:12, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>✓ Submit</button>
+                  )}
+                </div>
+
+                <div style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:16, padding:"16px" }}>
+                  <div style={{ fontSize:11, color:"#475569", marginBottom:12, letterSpacing:2, textTransform:"uppercase" }}>Navigator</div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {questions.map((_,i) => {
+                      const a = answers[i];
+                      const isSkipped = a === -1;
+                      const isDone = a !== null && a !== -1;
+                      return (
+                        <button key={i} onClick={() => setCurrent(i)}
+                          style={{ width:32, height:32, borderRadius:8, border:`2px solid ${i===current?"#f97316":isDone?"#22c55e55":isSkipped?"#47556955":"#1e1e3a"}`, background:i===current?"#f9731628":isDone?"#22c55e15":isSkipped?"#47556915":"transparent", color:i===current?"#f97316":isDone?"#4ade80":isSkipped?"#64748b":"#475569", fontSize:11, fontWeight:700, cursor:"pointer", transition:"all .12s" }}>
+                          {i+1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display:"flex", gap:16, marginTop:12, fontSize:11, color:"#475569" }}>
+                    <span>🟠 Current</span><span>🟢 Answered ({answered})</span><span>⬜ Skipped ({answers.filter(a=>a===-1).length})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {toast && <Toast msg={toast.msg} ok={toast.ok} />}
+          </>
+        );
+      }
+
+      // ── RESULT SCREEN ────────────────────────────────────────────────
+      if (phase === "result") {
+        const grade = pct>=80?"S":pct>=70?"A":pct>=60?"B":pct>=50?"C":pct>=40?"D":"F";
+        const gradeColor = pct>=70?"#4ade80":pct>=50?"#fbbf24":"#f87171";
+        const subjectBreakdown = {};
+        questions.forEach((q,i) => {
+          if (!subjectBreakdown[q.subject]) subjectBreakdown[q.subject] = {c:0,t:0};
+          subjectBreakdown[q.subject].t++;
+          if (answers[i]===q.ans) subjectBreakdown[q.subject].c++;
+        });
+
+        return (
+          <>
+            <style>{css}</style>
+            <div style={{ minHeight:"100vh", background:"#080810", fontFamily:"'Sora',sans-serif", color:"#f1f5f9", padding:"24px 16px" }}>
+              <div style={{ maxWidth:760, margin:"0 auto" }}>
+                <div style={{ background:"linear-gradient(135deg,#0d1117,#13131f)", border:"1px solid #1e1e3a", borderRadius:24, padding:"40px 24px", textAlign:"center", marginBottom:20, position:"relative", overflow:"hidden", animation:"fadeUp .5s ease" }}>
+                  <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 50% 0%, #f9731610, transparent 70%)", pointerEvents:"none" }} />
+                  <div style={{ marginBottom:20 }}>
+                    <CircleProgress pct={pct} size={130} stroke={11} color={gradeColor}>
+                      <div>
+                        <div style={{ fontSize:32, fontWeight:900, color:gradeColor, lineHeight:1 }}>{grade}</div>
+                        <div style={{ fontSize:13, color:"#64748b" }}>Grade</div>
+                      </div>
+                    </CircleProgress>
+                  </div>
+                  <div style={{ fontSize:48, fontWeight:900, color:gradeColor, marginBottom:4 }}>{pct}%</div>
+                  <div style={{ fontSize:16, color:"#94a3b8", marginBottom:24 }}>
+                    {pct>=70?"🏆 Excellent Performance!":pct>=50?"📚 Good Effort, Keep Going!":"💪 More Practice Needed!"}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+                    {[
+                      {v:score,    l:"Correct",  c:"#4ade80", icon:"✅"},
+                      {v:wrong,    l:"Wrong",    c:"#f87171", icon:"❌"},
+                      {v:skipped,  l:"Skipped",  c:"#94a3b8", icon:"⬜"},
+                      {v:questions.length, l:"Total", c:"#a78bfa", icon:"📊"},
+                    ].map(s => (
+                      <div key={s.l} style={{ background:"#ffffff06", border:"1px solid #1e1e3a", borderRadius:14, padding:"14px 8px" }}>
+                        <div style={{ fontSize:16 }}>{s.icon}</div>
+                        <Counter target={s.v} style={{ fontSize:24, fontWeight:800, color:s.c, display:"block" }} />
+                        <div style={{ fontSize:11, color:"#475569" }}>{s.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:20, padding:"24px", marginBottom:20, animation:"fadeUp .6s ease" }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:2, textTransform:"uppercase", marginBottom:18 }}>Subject Breakdown</div>
+                  {Object.entries(subjectBreakdown).map(([subj, d]) => {
+                    const subjData2 = SUBJECTS.find(s => s.label === subj) || { color:"#94a3b8", icon:"📖" };
+                    return <MiniBar key={subj} label={`${subjData2.icon} ${subj}`} correct={d.c} total={d.t} color={subjData2.color} />;
+                  })}
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:20, animation:"fadeUp .7s ease" }}>
+                  <button onClick={() => setShowReview(!showReview)}
+                    style={{ padding:"14px", background:"#0d1117", border:"1px solid #1e1e3a", borderRadius:14, color:"#94a3b8", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                    {showReview?"Hide":"📖 Review"} Answers
+                  </button>
+                  <button onClick={() => { setPhase("dashboard"); setQuestions([]); setAnswers([]); setCurrent(0); setShowReview(false); }}
+                    style={{ padding:"14px", background:"linear-gradient(135deg,#f97316,#f59e0b)", border:"none", borderRadius:14, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                    🔄 New Test
+                  </button>
+                </div>
+
+                {showReview && questions.map((q,i) => {
+                  const ua = answers[i];
+                  const correct = ua === q.ans;
+                  const skp = ua===null||ua===-1;
+                  const sc = SUBJECTS.find(s => s.label===q.subject) || SUBJECTS[0];
+                  return (
+                    <div key={q.id} style={{ background:"#0d1117", border:`1px solid ${skp?"#1e1e3a":correct?"#22c55e33":"#f8717133"}`, borderRadius:16, padding:"20px", marginBottom:12, animation:"fadeUp .4s ease" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                        <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:sc.bg, color:sc.color, border:`1px solid ${sc.color}33` }}>{sc.icon} {q.subject}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:skp?"#64748b":correct?"#4ade80":"#f87171" }}>
+                          {skp?"⬜ Skipped":correct?"✅ +1":"❌ 0"}
+                        </span>
+                      </div>
+                      <p style={{ fontSize:14, lineHeight:1.7, marginBottom:14, color:"#e2e8f0" }}><strong>Q{i+1}.</strong> {q.q}</p>
+                      {q.opts?.map((opt,j) => (
+                        <div key={j} style={{ padding:"9px 14px", borderRadius:10, marginBottom:6, fontSize:13,
+                          background: j===q.ans?"#22c55e15":(ua===j&&!correct)?"#f8717115":"#ffffff05",
+                          border:`1px solid ${j===q.ans?"#22c55e44":(ua===j&&!correct)?"#f8717144":"#1e1e3a"}`,
+                          color: j===q.ans?"#4ade80":(ua===j&&!correct)?"#f87171":"#64748b" }}>
+                          {j===q.ans?"✓ ":ua===j?"✗ ":"  "}{opt}
+                        </div>
+                      ))}
+                      {q.exp && <div style={{ marginTop:10, padding:"10px 14px", background:"#a78bfa10", border:"1px solid #a78bfa33", borderRadius:10, fontSize:12, color:"#a78bfa" }}>💡 {q.exp}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {toast && <Toast msg={toast.msg} ok={toast.ok} />}
+          </>
+        );
+      }
+
+      return null;
+    }
+
+    // ── RENDER ───────────────────────────────────────────────────────────
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<TNPSCApp />);
+  </script>
+</body>
+</html>
